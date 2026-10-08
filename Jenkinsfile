@@ -2,7 +2,16 @@
 // Pipeline 2 : node/ directory JSON files update
 // Files   : dev.json, prod.json, stage.json, uat.json (tick chesina files marutayi)
 // Rule    : field EMPTY ga vadilite marchadu. Value ichina field matrame marutundi.
+// Auto    : Manual approval ledu. Validation pass ayite automatic ga push avutundi.
+//           File tick cheyakapoyina / okka value kooda ivvakapoyina build automatic ga ABORT avutundi.
 // ============================================================
+
+// Build ni FAILED kakunda ABORTED ga automatic ga aapadaniki helper
+def abortBuild(String msg) {
+    currentBuild.result = 'ABORTED'
+    error(msg)
+}
+
 pipeline {
     agent any
 
@@ -12,9 +21,6 @@ pipeline {
         booleanParam(name: 'PROD_JSON',  defaultValue: false, description: 'node/prod.json')
         booleanParam(name: 'STAGE_JSON', defaultValue: false, description: 'node/stage.json')
         booleanParam(name: 'UAT_JSON',   defaultValue: false, description: 'node/uat.json')
-
-        // ---- Push mundu verify cheyali ante tick (recommended) ----
-        booleanParam(name: 'REQUIRE_APPROVAL', defaultValue: true, description: 'Tick unte: changes (git diff) chusaka Jenkins lo "Approve" nokkithe matrame push avutundi. Untick unte direct auto push.')
 
         // ---- Values ----
         string(name: 'P_ENVIRONMENT',   defaultValue: '', description: '"environment" (e.g. dev)')
@@ -49,7 +55,7 @@ pipeline {
                     if (params.STAGE_JSON) { files << 'node/stage.json' }
                     if (params.UAT_JSON)   { files << 'node/uat.json' }
                     if (files.isEmpty()) {
-                        error('Kaneesam okka file (dev/prod/stage/uat) tick cheyandi')
+                        abortBuild('ABORTED: Kaneesam okka file (dev/prod/stage/uat) tick cheyandi')
                     }
                     env.FILES = files.join(' ')
 
@@ -63,7 +69,7 @@ pipeline {
                         }
                     }
                     if (entered.isEmpty()) {
-                        error('Kaneesam okka value ayina ivvandi (anni empty / no-change ga unnayi)')
+                        abortBuild('ABORTED: Kaneesam okka value ayina ivvandi (anni fields empty / no-change ga unnayi)')
                     }
 
                     // 3) Number fields number ayyi undali
@@ -71,7 +77,7 @@ pipeline {
                     numericNames.each { n ->
                         def v = params[n]
                         if (v != null && v.toString().trim() != '' && !v.toString().matches('[0-9]+')) {
-                            error("${n} number ayyi undali, meeru icchindi: '${v}'")
+                            abortBuild("ABORTED: ${n} number ayyi undali, meeru icchindi: '${v}'")
                         }
                     }
 
@@ -145,16 +151,6 @@ JQ
             }
         }
 
-        stage('Approval') {
-            when { expression { env.HAS_CHANGES == 'true' && params.REQUIRE_APPROVAL } }
-            steps {
-                timeout(time: 30, unit: 'MINUTES') {
-                    input message: "Mundu 'Review Changes' stage lo git diff chudandi. Sarigga unte Approve cheyandi, push avutundi.",
-                          ok: 'Approve & Push'
-                }
-            }
-        }
-
         stage('Commit & Push') {
             when { expression { env.HAS_CHANGES == 'true' } }
             steps {
@@ -191,7 +187,7 @@ JQ
             echo 'FAILED: Console Output chudandi (Validate / jq / git push errors).'
         }
         aborted {
-            echo 'ABORTED: Approval ivvaledu leda cancel chesaru. Emi push avvaledu.'
+            echo 'ABORTED: Inputs ivvaledu (file / values) leda cancel chesaru. Emi push avvaledu.'
         }
     }
 }
