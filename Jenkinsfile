@@ -1,9 +1,9 @@
 // ============================================================
 // Pipeline 2 : node/ directory JSON files update
 // Files   : dev.json, prod.json, stage.json, uat.json (tick chesina files marutayi)
-// Rule    : field EMPTY ga vadilite marchadu. Value ichina field matrame marutundi.
+// Rule    : Anni fields ki value ivvali. Oka field empty unna build ABORT avutundi.
 // Auto    : Manual approval ledu. Validation pass ayite automatic ga push avutundi.
-//           File tick cheyakapoyina / okka value kooda ivvakapoyina build automatic ga ABORT avutundi.
+//           File tick cheyakapoyina / ye field empty unna build automatic ga ABORT avutundi.
 // ============================================================
 
 // Build ni FAILED kakunda ABORTED ga automatic ga aapadaniki helper
@@ -62,14 +62,18 @@ pipeline {
                     // 2) Entered values list
                     def valueNames = ['P_ENVIRONMENT', 'P_NODE_NAME', 'P_NODE_TYPE', 'P_REGION', 'P_AZ', 'P_INSTANCE_TYPE', 'P_OS', 'P_K8S_ROLE', 'P_K8S_VERSION', 'P_CPU', 'P_MEMORY', 'P_DISK', 'P_LABEL_ENV', 'P_LABEL_TEAM']
                     def entered = []
+                    def missing = []
                     valueNames.each { n ->
                         def v = params[n]
-                        if (v != null && v.toString().trim() != '' && v.toString() != 'no-change') {
+                        if (v == null || v.toString().trim() == '' || v.toString().trim() == 'no-change') {
+                            missing << n
+                        } else {
                             entered << "${n}=${v}"
                         }
                     }
-                    if (entered.isEmpty()) {
-                        abortBuild('ABORTED: Kaneesam okka value ayina ivvandi (anni fields empty / no-change ga unnayi)')
+                    // Oka value kooda miss ayina (empty unna) build ABORT avutundi
+                    if (!missing.isEmpty()) {
+                        abortBuild("ABORTED: Ee fields ki value ivvaledu: ${missing.join(', ')}. Anni fields ki value ivvali.")
                     }
 
                     // 3) Number fields number ayyi undali
